@@ -1,0 +1,23 @@
+name: Vuln scan and inquiry to OPA server
+
+on: [push]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout upstream repo
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Run Trivy vulnerability scanner in repo mode
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          format: json
+          output: trivy-results.json
+          list-all-pkgs: true
+      - uses: docker://ghcr.io/m-mizutani/opaq:latest
+        with:
+          args: "-u https://your-opa-server/v1/data/trivy -i trivy-results.json -m repository=${{ github.repository }} -m ref=${{ github.ref_name }} --fail-defined"

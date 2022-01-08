@@ -4,6 +4,7 @@
 
 ## Features
 
+- **Data formatting**: OPA server accepts only `{"input": ...}` schema and responds `{"result": ...}` schema. `opaq` changes input format and extracts result data before/after inquiry to OPA server.
 - **Control exit code**: `--fail-defined` and `--fail-undefined` options can change exit code to fail CI.
 - **Inject metadata**: `--metadata (-m)` can inject metadata to original input data for more sophisticated decision.
 
@@ -12,21 +13,51 @@
 ### Basic
 
 ```bash
-$ some-command | opaq -u https://your-opa-server/v1/data/yourpolicy
+$ opaq -i result.json -u https://your-opa-server/v1/data/yourpolicy
 {
     "allow": true
 }
 ```
 
+### GitHub Actions
+
+E.g. querying a result of [Trivy](https://github.com/aquasecurity/trivy) scan.
+
+```yml
+name: Vuln scan and inquiry to OPA server
+
+on: [push]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout upstream repo
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Run Trivy vulnerability scanner in repo mode
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          format: json
+          output: trivy-results.json
+          list-all-pkgs: true
+      - uses: docker://ghcr.io/m-mizutani/opaq:latest
+        with:
+          args: "-u https://your-opa-server/v1/data/trivy -i trivy-results.json -m repository=${{ github.repository }} -m ref=${{ github.ref_name }} --fail-defined"
+```
+
 ### Control exit code
 
-Two option to exit with non-zero code.
+`opaq` has two options for non-zero code exit to fail CI.
 
 - `--fail-defined`: Exits with non-zero exit code on **undefined/empty** result and errors
 - `--fail-undefined`: Exits with non-zero exit code on **defined/non-empty** result and errors
 
 ```bash
-$ some-command | opaq -u https://your-opa-server/v1/data/blue --fail-defined
+$ opaq -i result.json -u https://your-opa-server/v1/data/blue --fail-defined
 {
     "allow": true
 }
@@ -34,7 +65,7 @@ $ some-command | opaq -u https://your-opa-server/v1/data/blue --fail-defined
 ```
 
 ```bash
-$ some-command | opaq -u https://your-opa-server/v1/data/orange --fail-defined
+$ opaq -i result.json -u https://your-opa-server/v1/data/orange --fail-defined
 {}
 # Normally exit
 ```
@@ -44,7 +75,7 @@ $ some-command | opaq -u https://your-opa-server/v1/data/orange --fail-defined
 In some cases, the structural data output for evaluation by OPA is not enough information for evaluation. For example, evaluation requires not only content of configuration file but also directory path and file name to check consistency. `opaq` allows to add metadata to original structure data.
 
 ```bash
-$ cat some/file.json | opaq -m "path=some/file.json" -u https://your-opa-server/v1/data/green
+$ opaq -i some/file.json -m "path=some/file.json" -u https://your-opa-server/v1/data/green
 ```
 
 If original `some/file.json` is below,
