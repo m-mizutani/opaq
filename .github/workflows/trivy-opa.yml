@@ -1,4 +1,4 @@
-name: Vuln scan and inquiry to OPA server
+name: Vuln check
 
 on: [push]
 
@@ -20,4 +20,4 @@ jobs:
           list-all-pkgs: true
       - uses: docker://ghcr.io/m-mizutani/opaq:latest
         with:
-          args: "-u https://your-opa-server/v1/data/trivy -i trivy-results.json -m repository=${{ github.repository }} -m ref=${{ github.ref_name }} --fail-defined"
+          args: "-u https://opa-server-h6tk4k5hyq-an.a.run.app/v1/data/trivy -i trivy-results.json -m repository=${{ github.repository }} -m ref=${{ github.ref_name }} --fail-defined"
