@@ -103,7 +103,8 @@ func TestQuery(t *testing.T) {
 		require.NoError(t, err)
 		defer os.Remove(tmp.Name())
 
-		io.Copy(tmp, toInput(t, sampleInput{User: "orange"}))
+		_, err = io.Copy(tmp, toInput(t, sampleInput{User: "orange"}))
+		require.NoError(t, err)
 		require.NoError(t, tmp.Close())
 
 		var called int
