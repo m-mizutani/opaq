@@ -10,6 +10,18 @@
 
 ## Usage
 
+Installation with `go` command.
+
+```bash
+$ go install github.com/m-mizutani/opaq@latest
+```
+
+Or run command via docker image `ghcr.io/m-mizutani/opaq:latest`.
+
+```bash
+$ docker run ghcr.io/m-mizutani/opaq:latest -i result.json -u https://your-opa-server/v1/data/yourpolicy
+```
+
 ### Basic
 
 ```bash
