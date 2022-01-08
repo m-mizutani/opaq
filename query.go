@@ -22,6 +22,8 @@ type queryConfig struct {
 	Input         string
 	Output        string
 	Headers       []string
+	MetaData      []string
+	MetaDataField string
 }
 
 func (x *queryConfig) Validate() error {
@@ -29,7 +31,7 @@ func (x *queryConfig) Validate() error {
 		validation.Required,
 		is.URL,
 	); err != nil {
-		return ErrInvalidConfiguration.Wrap(err)
+		return ErrInvalidConfiguration.Wrap(err).With("target", "--url")
 	}
 
 	for _, hdr := range x.Headers {
@@ -37,7 +39,28 @@ func (x *queryConfig) Validate() error {
 			validation.Required,
 			validation.Match(regexp.MustCompile(`^[\w-]+:.+$`)),
 		); err != nil {
-			return ErrInvalidConfiguration.Wrap(err)
+			return ErrInvalidConfiguration.Wrap(err).
+				With("NOTE: Expected format", "HeaderName: Value").
+				With("target", "--header")
+		}
+	}
+
+	if len(x.MetaData) > 0 {
+		if err := validation.Validate(x.MetaDataField,
+			validation.Required,
+		); err != nil {
+			return ErrInvalidConfiguration.Wrap(err).With("target", "--metadata-field")
+		}
+
+		for _, meta := range x.MetaData {
+			if err := validation.Validate(meta,
+				validation.Required,
+				validation.Match(regexp.MustCompile(`^[\w-_]+=.+$`)),
+			); err != nil {
+				return ErrInvalidConfiguration.Wrap(err).
+					With("target", "--metadata").
+					With("NOTE: Expected format", "Key=Value")
+			}
 		}
 	}
 
@@ -51,23 +74,29 @@ func (x *Proc) query(ctx context.Context, cfg *queryConfig) error {
 		return err
 	}
 
-	var dataInput io.Reader = x.stdin
-	if cfg.Input != "-" {
-		f, err := os.Open(cfg.Input)
-		if err != nil {
-			return goerr.Wrap(err).With("path", cfg.Input)
-		}
-		dataInput = f
-		defer func() {
-			if err := f.Close(); err != nil {
-				logger.Err(err).Error(err.Error())
-			}
-		}()
-	}
-
 	var data interface{}
-	if err := json.NewDecoder(dataInput).Decode(&data); err != nil {
-		return goerr.Wrap(err).With("path", cfg.Input)
+	if len(cfg.MetaData) == 0 {
+		if err := x.readData(cfg.Input, &data); err != nil {
+			return err
+		}
+	} else {
+		var tmp map[string]interface{}
+		if err := x.readData(cfg.Input, &tmp); err != nil {
+			return goerr.Wrap(err).With("NOTE", "input must be key-value map for metadata injection")
+		}
+
+		metadata := make(map[string]string)
+		for _, meta := range cfg.MetaData {
+			p := strings.Index(meta, "=")
+			if p < 0 {
+				panic("validation does not work for metadata")
+			}
+			key := meta[:p]
+			value := meta[(p + 1):]
+			metadata[key] = value
+		}
+		tmp[cfg.MetaDataField] = metadata
+		data = tmp
 	}
 
 	input := &QueryInput{
@@ -87,23 +116,8 @@ func (x *Proc) query(ctx context.Context, cfg *queryConfig) error {
 		return err
 	}
 
-	var dataOutput io.Writer = x.stdout
-	if cfg.Input != "-" {
-		f, err := os.Open(cfg.Input)
-		if err != nil {
-			return goerr.Wrap(err).With("path", cfg.Input)
-		}
-		dataOutput = f
-		defer func() {
-			if err := f.Close(); err != nil {
-				logger.Err(err).Error(err.Error())
-			}
-		}()
-	}
-	encoder := json.NewEncoder(dataOutput)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(out); err != nil {
-		return goerr.Wrap(err)
+	if err := x.writeData(cfg.Output, out); err != nil {
+		return err
 	}
 
 	logger.Debug("Exiting inquiry")
@@ -115,6 +129,50 @@ func (x *Proc) query(ctx context.Context, cfg *queryConfig) error {
 		return ErrExitWithNonZero
 	}
 
+	return nil
+}
+
+func (x *Proc) readData(input string, out interface{}) error {
+	var dataInput io.Reader = x.stdin
+	if input != "-" {
+		f, err := os.Open(input)
+		if err != nil {
+			return goerr.Wrap(err).With("path", input)
+		}
+		dataInput = f
+		defer func() {
+			if err := f.Close(); err != nil {
+				logger.Err(err).Error(err.Error())
+			}
+		}()
+	}
+
+	if err := json.NewDecoder(dataInput).Decode(out); err != nil {
+		return goerr.Wrap(err).With("path", input)
+	}
+	return nil
+}
+
+func (x *Proc) writeData(output string, out interface{}) error {
+	var dataOutput io.Writer = x.stdout
+	if output != "-" {
+		f, err := os.Create(output)
+		if err != nil {
+			return goerr.Wrap(err).With("path", output)
+		}
+		dataOutput = f
+		defer func() {
+			if err := f.Close(); err != nil {
+				logger.Err(err).Error(err.Error())
+			}
+		}()
+	}
+
+	encoder := json.NewEncoder(dataOutput)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(out); err != nil {
+		return goerr.Wrap(err)
+	}
 	return nil
 }
 

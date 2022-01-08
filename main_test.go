@@ -212,6 +212,73 @@ func TestExit(t *testing.T) {
 	})
 }
 
+func TestMetadata(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("inject metadata", func(t *testing.T) {
+		var called int
+		err := opaq.New(
+			opaq.WithHTTPClient(&stub{do: func(r *http.Request) (*http.Response, error) {
+				called++
+				var input map[string]interface{}
+
+				bindRequest(t, r.Body, &input)
+				assert.Equal(t, "blue", input["user"])
+				metadata, ok := input["metadata"].(map[string]interface{})
+				require.True(t, ok)
+				require.NotNil(t, metadata)
+				assert.Equal(t, "five.json", metadata["filename"])
+
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       toRespBody(t, &sampleResult{Allow: true}),
+				}, nil
+			}}),
+			opaq.WithStdin(toInput(t, sampleInput{User: "blue"})),
+		).Cmd(ctx, args(
+			"-u", "https://opa.example.com/xxx", // URL
+			"-m", "filename=five.json",
+		))
+		require.NoError(t, err)
+		assert.Equal(t, 1, called)
+	})
+
+	t.Run("change metadata field name", func(t *testing.T) {
+		var called int
+		err := opaq.New(
+			opaq.WithHTTPClient(&stub{do: func(r *http.Request) (*http.Response, error) {
+				called++
+				var input map[string]interface{}
+
+				bindRequest(t, r.Body, &input)
+
+				// not found by default name
+				_, ok := input["metadata"].(map[string]interface{})
+				assert.False(t, ok)
+
+				// found in specified field name
+				metadata, ok := input["metaverse"].(map[string]interface{})
+				require.True(t, ok)
+				require.NotNil(t, metadata)
+				assert.Equal(t, "five.json", metadata["filename"])
+
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       toRespBody(t, &sampleResult{Allow: true}),
+				}, nil
+			}}),
+			opaq.WithStdin(toInput(t, sampleInput{User: "blue"})),
+		).Cmd(ctx, args(
+			"-u", "https://opa.example.com/xxx", // URL
+			"-m", "filename=five.json",
+			"--metadata-field", "metaverse",
+		))
+		require.NoError(t, err)
+		assert.Equal(t, 1, called)
+	})
+
+}
+
 func TestInvalidOption(t *testing.T) {
 	testCases := []struct {
 		desc string
@@ -230,6 +297,16 @@ func TestInvalidOption(t *testing.T) {
 		{
 			desc: "Invalid header must fail",
 			args: args("-u", "https://example.com", "-H", "invalid header"),
+			err:  opaq.ErrInvalidConfiguration,
+		},
+		{
+			desc: "Invalid metadata fails",
+			args: args("-u", "https://example.com", "-m", "foo"),
+			err:  opaq.ErrInvalidConfiguration,
+		},
+		{
+			desc: "No metadata field name fails",
+			args: args("-u", "https://example.com", "-m", "foo=baa", "--metadata-field="),
 			err:  opaq.ErrInvalidConfiguration,
 		},
 	}

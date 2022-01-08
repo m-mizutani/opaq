@@ -39,6 +39,7 @@ type config struct {
 	queryConfig
 
 	headers  cli.StringSlice
+	metadata cli.StringSlice
 	LogLevel string
 }
 
@@ -49,6 +50,7 @@ func (x *Proc) Cmd(ctx context.Context, args []string) error {
 		Name:  "opaq",
 		Usage: "Query to OPA server",
 		Flags: []cli.Flag{
+			// Manage exit code
 			&cli.BoolFlag{
 				Name:        "fail-defined",
 				Usage:       "exits with non-zero exit code on undefined/empty result and errors",
@@ -60,6 +62,7 @@ func (x *Proc) Cmd(ctx context.Context, args []string) error {
 				Destination: &cfg.FailUndefined,
 			},
 
+			// URL
 			&cli.StringFlag{
 				Name:        "url",
 				Aliases:     []string{"u"},
@@ -69,6 +72,7 @@ func (x *Proc) Cmd(ctx context.Context, args []string) error {
 				Destination: &cfg.URL,
 			},
 
+			// In/Out
 			&cli.StringFlag{
 				Name:        "input",
 				Aliases:     []string{"i"},
@@ -84,14 +88,32 @@ func (x *Proc) Cmd(ctx context.Context, args []string) error {
 				Destination: &cfg.Output,
 			},
 
+			// Metadata
+			&cli.StringSliceFlag{
+				Name:        "metadata",
+				Aliases:     []string{"m"},
+				EnvVars:     []string{"OPAQ_METADATA"},
+				Usage:       "Metadata value(s). Format: MyMetaData=MyValue",
+				Destination: &cfg.metadata,
+			},
+			&cli.StringFlag{
+				Name:        "metadata-field",
+				EnvVars:     []string{"OPAQ_METADATA_FIELD"},
+				Usage:       "Metadata field name",
+				Value:       "metadata",
+				Destination: &cfg.MetaDataField,
+			},
+
+			// Customize HTTP request
 			&cli.StringSliceFlag{
 				Name:        "http-header",
 				Aliases:     []string{"H"},
 				EnvVars:     []string{"OPAQ_HEADER"},
-				Usage:       "Custom header(s) of a HTTP request",
+				Usage:       "Custom header(s) of a HTTP request. e.g. `X-Token: xxxxxxx`",
 				Destination: &cfg.headers,
 			},
 
+			// misc
 			&cli.StringFlag{
 				Name:        "log-level",
 				Aliases:     []string{"l"},
@@ -103,6 +125,7 @@ func (x *Proc) Cmd(ctx context.Context, args []string) error {
 
 		Before: func(_ *cli.Context) error {
 			cfg.Headers = cfg.headers.Value()
+			cfg.MetaData = cfg.metadata.Value()
 
 			l, err := zlog.NewWithError(
 				zlog.WithLogLevel(cfg.LogLevel),
@@ -136,7 +159,7 @@ func (x *Proc) Cmd(ctx context.Context, args []string) error {
 		var goErr *goerr.Error
 		if errors.As(err, &goErr) {
 			for key, value := range goErr.Values() {
-				log.With(key, value)
+				log = log.With(key, value)
 			}
 		}
 
