@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
@@ -24,6 +25,7 @@ type queryConfig struct {
 	Headers       []string
 	MetaData      []string
 	MetaDataField string
+	DataField     string
 }
 
 func (x *queryConfig) Validate() error {
@@ -74,18 +76,14 @@ func (x *Proc) query(ctx context.Context, cfg *queryConfig) error {
 		return err
 	}
 
-	var data interface{}
-	if len(cfg.MetaData) == 0 {
-		if err := x.readData(cfg.Input, &data); err != nil {
-			return err
-		}
-	} else {
-		var tmp map[string]interface{}
-		if err := x.readData(cfg.Input, &tmp); err != nil {
-			return goerr.Wrap(err).With("NOTE", "input must be key-value map for metadata injection")
-		}
+	var inputData interface{}
+	if err := x.readData(cfg.Input, &inputData); err != nil {
+		return err
+	}
 
-		metadata := make(map[string]string)
+	var metadata map[string]string
+	if len(cfg.MetaData) > 0 {
+		metadata = make(map[string]string)
 		for _, meta := range cfg.MetaData {
 			p := strings.Index(meta, "=")
 			if p < 0 {
@@ -95,8 +93,26 @@ func (x *Proc) query(ctx context.Context, cfg *queryConfig) error {
 			value := meta[(p + 1):]
 			metadata[key] = value
 		}
-		tmp[cfg.MetaDataField] = metadata
-		data = tmp
+	}
+
+	var data interface{}
+	if cfg.DataField == "" {
+		if metadata != nil {
+			root, ok := inputData.(map[string]interface{})
+			if !ok {
+				return goerr.Wrap(ErrInvalidConfiguration, "metadata can be injected to only object (key-value) type data")
+			}
+			root[cfg.MetaDataField] = metadata
+		}
+
+		data = inputData
+	} else {
+		root := make(map[string]interface{})
+		root[cfg.DataField] = inputData
+		if metadata != nil {
+			root[cfg.MetaDataField] = metadata
+		}
+		data = root
 	}
 
 	input := &QueryInput{
@@ -135,7 +151,7 @@ func (x *Proc) query(ctx context.Context, cfg *queryConfig) error {
 func (x *Proc) readData(input string, out interface{}) error {
 	var dataInput io.Reader = x.stdin
 	if input != "-" {
-		f, err := os.Open(input)
+		f, err := os.Open(filepath.Clean(input))
 		if err != nil {
 			return goerr.Wrap(err).With("path", input)
 		}

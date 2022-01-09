@@ -278,6 +278,38 @@ func TestMetadata(t *testing.T) {
 		assert.Equal(t, 1, called)
 	})
 
+	t.Run("change data path", func(t *testing.T) {
+		var called int
+		err := opaq.New(
+			opaq.WithHTTPClient(&stub{do: func(r *http.Request) (*http.Response, error) {
+				called++
+				var input map[string]interface{}
+
+				bindRequest(t, r.Body, &input)
+				assert.Nil(t, input["user"])
+				data, ok := input["mydata"].(map[string]interface{})
+				require.True(t, ok)
+				assert.Equal(t, "blue", data["user"])
+
+				metadata, ok := input["metadata"].(map[string]interface{})
+				require.True(t, ok)
+				require.NotNil(t, metadata)
+				assert.Equal(t, "five.json", metadata["filename"])
+
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       toRespBody(t, &sampleResult{Allow: true}),
+				}, nil
+			}}),
+			opaq.WithStdin(toInput(t, sampleInput{User: "blue"})),
+		).Cmd(ctx, args(
+			"-u", "https://opa.example.com/xxx", // URL
+			"-m", "filename=five.json",
+			"--data-field", "mydata",
+		))
+		require.NoError(t, err)
+		assert.Equal(t, 1, called)
+	})
 }
 
 func TestInvalidOption(t *testing.T) {

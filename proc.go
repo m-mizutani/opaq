@@ -103,6 +103,12 @@ func (x *Proc) Cmd(ctx context.Context, args []string) error {
 				Value:       "metadata",
 				Destination: &cfg.MetaDataField,
 			},
+			&cli.StringFlag{
+				Name:        "data-field",
+				EnvVars:     []string{"OPAQ_DATA_FIELD"},
+				Usage:       "Data field name",
+				Destination: &cfg.DataField,
+			},
 
 			// Customize HTTP request
 			&cli.StringSliceFlag{
