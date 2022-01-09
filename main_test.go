@@ -310,6 +310,36 @@ func TestMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, called)
 	})
+
+	t.Run("no metadata and set only data field name", func(t *testing.T) {
+		var called int
+		err := opaq.New(
+			opaq.WithHTTPClient(&stub{do: func(r *http.Request) (*http.Response, error) {
+				called++
+				var input map[string]interface{}
+
+				bindRequest(t, r.Body, &input)
+				assert.Nil(t, input["user"])
+				data, ok := input["mydata"].(map[string]interface{})
+				require.True(t, ok)
+				assert.Equal(t, "blue", data["user"])
+
+				_, ok = input["metadata"].(map[string]interface{})
+				require.False(t, ok)
+
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       toRespBody(t, &sampleResult{Allow: true}),
+				}, nil
+			}}),
+			opaq.WithStdin(toInput(t, sampleInput{User: "blue"})),
+		).Cmd(ctx, args(
+			"-u", "https://opa.example.com/xxx", // URL
+			"--data-field", "mydata",
+		))
+		require.NoError(t, err)
+		assert.Equal(t, 1, called)
+	})
 }
 
 func TestInvalidOption(t *testing.T) {
