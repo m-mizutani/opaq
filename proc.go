@@ -87,6 +87,13 @@ func (x *Proc) Cmd(ctx context.Context, args []string) error {
 				Value:       "-",
 				Destination: &cfg.Output,
 			},
+			&cli.StringFlag{
+				Name:        "format",
+				Aliases:     []string{"f"},
+				Usage:       "input format [json,yaml]",
+				Value:       "json",
+				Destination: &cfg.Format,
+			},
 
 			// Metadata
 			&cli.StringSliceFlag{

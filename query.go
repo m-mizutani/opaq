@@ -14,6 +14,7 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/m-mizutani/goerr"
+	"gopkg.in/yaml.v2"
 )
 
 type queryConfig struct {
@@ -22,6 +23,8 @@ type queryConfig struct {
 	FailUndefined bool
 	Input         string
 	Output        string
+	Format        string
+
 	Headers       []string
 	MetaData      []string
 	MetaDataField string
@@ -34,6 +37,13 @@ func (x *queryConfig) Validate() error {
 		is.URL,
 	); err != nil {
 		return ErrInvalidConfiguration.Wrap(err).With("target", "--url")
+	}
+
+	if err := validation.Validate(x.Format,
+		validation.Required,
+		validation.In("json", "yaml"),
+	); err != nil {
+		return ErrInvalidConfiguration.Wrap(err).With("target", "--format")
 	}
 
 	for _, hdr := range x.Headers {
@@ -76,8 +86,8 @@ func (x *Proc) query(ctx context.Context, cfg *queryConfig) error {
 		return err
 	}
 
-	var inputData interface{}
-	if err := x.readData(cfg.Input, &inputData); err != nil {
+	inputData, err := x.readData(cfg.Input, cfg.Format)
+	if err != nil {
 		return err
 	}
 
@@ -148,12 +158,12 @@ func (x *Proc) query(ctx context.Context, cfg *queryConfig) error {
 	return nil
 }
 
-func (x *Proc) readData(input string, out interface{}) error {
+func (x *Proc) readData(input string, format string) (interface{}, error) {
 	var dataInput io.Reader = x.stdin
 	if input != "-" {
 		f, err := os.Open(filepath.Clean(input))
 		if err != nil {
-			return goerr.Wrap(err).With("path", input)
+			return nil, goerr.Wrap(err).With("path", input)
 		}
 		dataInput = f
 		defer func() {
@@ -163,10 +173,54 @@ func (x *Proc) readData(input string, out interface{}) error {
 		}()
 	}
 
-	if err := json.NewDecoder(dataInput).Decode(out); err != nil {
-		return goerr.Wrap(err).With("path", input)
+	var results []interface{}
+	switch format {
+	case "json":
+		decoder := json.NewDecoder(dataInput)
+		for {
+			var doc interface{}
+			if err := decoder.Decode(&doc); err == io.EOF {
+				break
+			} else if err != nil {
+				return nil, goerr.Wrap(err).With("path", input)
+			}
+			results = append(results, doc)
+		}
+
+	case "yaml":
+		decoder := yaml.NewDecoder(dataInput)
+		for {
+			var doc interface{}
+			if err := decoder.Decode(&doc); err == io.EOF {
+				break
+			} else if err != nil {
+				return nil, goerr.Wrap(err)
+			}
+			results = append(results, fixInterfaceMap(doc))
+		}
 	}
-	return nil
+
+	if len(results) == 1 {
+		return results[0], nil
+	}
+
+	return results, nil
+}
+
+func fixInterfaceMap(i interface{}) interface{} {
+	switch x := i.(type) {
+	case map[interface{}]interface{}:
+		m2 := map[string]interface{}{}
+		for k, v := range x {
+			m2[k.(string)] = fixInterfaceMap(v)
+		}
+		return m2
+	case []interface{}:
+		for i, v := range x {
+			x[i] = fixInterfaceMap(v)
+		}
+	}
+	return i
 }
 
 func (x *Proc) writeData(output string, out interface{}) error {

@@ -213,6 +213,95 @@ func TestExit(t *testing.T) {
 	})
 }
 
+func TestInput(t *testing.T) {
+	ctx := context.Background()
+	t.Run("input yaml format", func(t *testing.T) {
+		var called int
+		err := opaq.New(
+			opaq.WithHTTPClient(&stub{do: func(r *http.Request) (*http.Response, error) {
+				called++
+				var input map[string]interface{}
+				bindRequest(t, r.Body, &input)
+				assert.Equal(t, "blue", input["color"])
+
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       toRespBody(t, &struct{}{}),
+				}, nil
+			}}),
+			opaq.WithStdin(bytes.NewReader([]byte(`
+color: blue
+`))),
+		).Cmd(ctx, args(
+			"-u", "https://opa.example.com/xxx", // URL
+			"-f", "yaml",
+			"--fail-defined",
+		))
+		assert.NoError(t, err)
+		assert.Equal(t, 1, called)
+	})
+
+	t.Run("accept multiple yaml document", func(t *testing.T) {
+		var called int
+		err := opaq.New(
+			opaq.WithHTTPClient(&stub{do: func(r *http.Request) (*http.Response, error) {
+				called++
+				var input []map[string]interface{}
+				bindRequest(t, r.Body, &input)
+				require.Len(t, input, 2)
+				assert.Equal(t, "blue", input[0]["color"])
+				assert.Equal(t, "orange", input[1]["color"])
+
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       toRespBody(t, &struct{}{}),
+				}, nil
+			}}),
+			opaq.WithStdin(bytes.NewReader([]byte(`
+color: blue
+---
+color: orange
+`))),
+		).Cmd(ctx, args(
+			"-u", "https://opa.example.com/xxx", // URL
+			"-f", "yaml",
+			"--fail-defined",
+		))
+		assert.NoError(t, err)
+		assert.Equal(t, 1, called)
+	})
+
+	t.Run("accept multiple json document", func(t *testing.T) {
+		var called int
+		err := opaq.New(
+			opaq.WithHTTPClient(&stub{do: func(r *http.Request) (*http.Response, error) {
+				called++
+				var input []map[string]interface{}
+				bindRequest(t, r.Body, &input)
+				require.Len(t, input, 2)
+				assert.Equal(t, "blue", input[0]["color"])
+				assert.Equal(t, "orange", input[1]["color"])
+
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       toRespBody(t, &struct{}{}),
+				}, nil
+			}}),
+			opaq.WithStdin(bytes.NewReader([]byte(`
+{"color":"blue"}
+{"color":"orange"}
+`))),
+		).Cmd(ctx, args(
+			"-u", "https://opa.example.com/xxx", // URL
+			"-f", "json",
+			"--fail-defined",
+		))
+		assert.NoError(t, err)
+		assert.Equal(t, 1, called)
+	})
+
+}
+
 func TestMetadata(t *testing.T) {
 	ctx := context.Background()
 
@@ -370,6 +459,11 @@ func TestInvalidOption(t *testing.T) {
 		{
 			desc: "No metadata field name fails",
 			args: args("-u", "https://example.com", "-m", "foo=baa", "--metadata-field="),
+			err:  opaq.ErrInvalidConfiguration,
+		},
+		{
+			desc: "Invalid data format",
+			args: args("-u", "https://example.com", "-f", "jsonnet"),
 			err:  opaq.ErrInvalidConfiguration,
 		},
 	}
