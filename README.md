@@ -111,6 +111,13 @@ If original `some/file.json` is below,
 
 Also, `--metadata-field` can change a field name of metadata. Default is `metadata`.
 
+### Other options
+
+- `--input`: Specify input file instead of STDIN
+- `--format`: Choose input format [`json`, `yaml`]
+- `--data-field`: Nest input data with a value of the option. If `mydata` is provided, `{"user":"you"}` will be modified to `{"mydata":{"user":"you"}}`
+- `http-header`: Add custom HTTP header(s). e.g. `Authorization: Bearer XXXXX` to pass authentication of OPA server
+
 ## License
 
 Apache License 2.0
