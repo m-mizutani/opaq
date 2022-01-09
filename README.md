@@ -56,7 +56,7 @@ jobs:
           format: json
           output: trivy-results.json
           list-all-pkgs: true
-      - uses: docker://ghcr.io/m-mizutani/opaq:latest
+      - uses: docker://ghcr.io/m-mizutani/opaq:v0.1.0
         with:
           args: "-u https://your-opa-server/v1/data/trivy -i trivy-results.json -m repository=${{ github.repository }} -m ref=${{ github.ref_name }} --fail-defined"
 ```

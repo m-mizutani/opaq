@@ -47,8 +47,9 @@ func (x *Proc) Cmd(ctx context.Context, args []string) error {
 	var cfg config
 
 	app := &cli.App{
-		Name:  "opaq",
-		Usage: "Query to OPA server",
+		Name:    "opaq",
+		Usage:   "Query to OPA server",
+		Version: "v0.1.0",
 		Flags: []cli.Flag{
 			// Manage exit code
 			&cli.BoolFlag{
