@@ -27,10 +27,9 @@ type opaResponse struct {
 }
 
 type QueryInput struct {
-	MetaData map[string]string
-	Data     interface{}
-	URL      string
-	Headers  http.Header
+	Data    interface{}
+	URL     string
+	Headers http.Header
 }
 
 func (x *Client) Query(ctx context.Context, input *QueryInput, out interface{}) error {
