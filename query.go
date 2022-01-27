@@ -226,7 +226,7 @@ func fixInterfaceMap(i interface{}) interface{} {
 func (x *Proc) writeData(output string, out interface{}) error {
 	var dataOutput io.Writer = x.stdout
 	if output != "-" {
-		f, err := os.Create(output)
+		f, err := os.Create(filepath.Clean(output))
 		if err != nil {
 			return goerr.Wrap(err).With("path", output)
 		}
