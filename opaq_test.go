@@ -130,17 +130,6 @@ func TestClient_Query(t *testing.T) {
 	}
 }
 
-type testPrintHook struct {
-	msg    string
-	called bool
-}
-
-func (t *testPrintHook) Print(ctx print.Context, s string) error {
-	t.msg = s
-	t.called = true
-	return nil
-}
-
 func TestClient_Options(t *testing.T) {
 	var logOutput strings.Builder
 	logger := slog.New(slog.NewTextHandler(&logOutput, &slog.HandlerOptions{
@@ -163,23 +152,27 @@ func TestClient_Options(t *testing.T) {
 	)
 	gt.NoError(t, err)
 
-	printHook := &testPrintHook{}
-
 	var result struct {
 		Allow bool `json:"allow"`
 	}
+	var printHookCalled bool
+	var printHookMsg string
 	err = client.Query(
 		context.Background(),
 		"data.test",
 		nil,
 		&result,
-		opaq.WithPrintHook(printHook),
+		opaq.WithPrintHook(func(ctx print.Context, msg string) error {
+			printHookCalled = true
+			printHookMsg = msg
+			return nil
+		}),
 	)
 	gt.NoError(t, err)
 	gt.Value(t, result.Allow).Equal(true)
-	gt.Value(t, printHook.called).Equal(true)
+	gt.Value(t, printHookCalled).Equal(true)
 	gt.S(t, logOutput.String()).Contains("Setting print hook")
-	gt.Value(t, printHook.msg).Equal("testing print hook")
+	gt.S(t, printHookMsg).Equal("testing print hook")
 }
 
 func TestClient_Metadata(t *testing.T) {

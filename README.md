@@ -1,14 +1,26 @@
 # opaq
 
-Rego query library with local policy file or data based on OPA (Open Policy Agent)
+Rego query library with local policy file or data based on OPA (Open Policy Agent). This library is a wrapper of [Open Policy Agent](https://www.openpolicyagent.org/) and [Rego](https://www.openpolicyagent.org/docs/policy-language.html) to evaluate local policy files or data.
 
-## Usage
-
+## Install
 ```
 go get github.com/m-mizutani/opaq
 ```
 
-### Basic Usage
+## Basic Usage
+
+Here is a basic example of how to use the library. The example code is in [examples/basic](./examples/basic).
+
+```rego:policy/authz.rego
+package authz
+
+allow if {
+    input.user == "alice"
+    input.action == "read"
+}
+```
+
+And here is the example code.
 
 ```go
 package main
@@ -16,13 +28,14 @@ package main
 import (
     "context"
     "log"
+    "fmt"
 
     "github.com/m-mizutani/opaq"
 )
 
 func main() {
     // Create a new client with policy files from a directory
-    client, err := opaq.New(opaq.Files("./policies"))
+    client, err := opaq.New(opaq.Files("./policy"))
     if err != nil {
         log.Fatal(err)
     }
@@ -42,7 +55,7 @@ func main() {
     // Query the policy
     err = client.Query(
         context.Background(),
-        "data.authz.allow",
+        "data.authz",
         input,
         &output,
     )
@@ -51,42 +64,85 @@ func main() {
     }
 
     if output.Allow {
-        log.Println("Access granted")
+        fmt.Println("Access granted")
     } else {
-        log.Println("Access denied")
+        fmt.Println("Access denied")
     }
+    // Output:
+    // Access granted
 }
 ```
 
-### Advanced Features
+## Advanced Features
 
-#### Custom Logger
+### Custom Logger
+
+`opaq` supports logger with `slog` package. This is useful when you want to see the debug logs from Rego policy. The example code is in [examples/logger](./examples/logger).
 
 ```go
-import "log/slog"
+logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+    Level: slog.LevelDebug,
+}))
 
-logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+// Create a new client with logger
 client, err := opaq.New(
-    opaq.Files("./policies"),
+    opaq.Files("./policy"),
     opaq.WithLogger(logger),
 )
+if err != nil {
+    log.Fatal(err)
+}
 ```
 
-#### Print Hook
+It outputs the debug logs like below when the query is evaluated.
+
+```
+time=2025-02-20T05:07:11.280+09:00 level=DEBUG msg="Evaluating query" query_id=BDSXIVAWYU7YSZFKR2KYGI54HQ query=data.authz input="map[action:read resource:document-123 user:alice]"
+time=2025-02-20T05:07:11.280+09:00 level=DEBUG msg="Query evaluated" query_id=BDSXIVAWYU7YSZFKR2KYGI54HQ result="[{Expressions:[map[allow:true]] Bindings:map[]}]"
+time=2025-02-20T05:07:11.280+09:00 level=DEBUG msg="Unmarshaled result" query_id=BDSXIVAWYU7YSZFKR2KYGI54HQ output=&{Allow:true}
+```
+
+### Print Hook
+
+`opaq` supports print hook to show the print statements from Rego policy. The example code is in [examples/print-hook](./examples/print-hook).
 
 ```go
-client.Query(
-    context.Background(),
-    "data.authz.allow",
-    input,
-    &output,
-    opaq.WithPrintHook(func(string) {
-        // Handle print statements from Rego policy
-    }),
-)
+	hook := func(ctx print.Context, msg string) error {
+		fmt.Println("📣", msg) // Show print statements from Rego policy
+		return nil
+	}
+	// Query the policy
+	err = client.Query(
+		context.Background(),
+		"data.authz",
+		input,
+		&output,
+		opaq.WithPrintHook(hook),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
 ```
 
-#### Rego Version Selection
+And the policy should have `print` statement.
+
+```rego:policy/authz.rego
+package authz
+
+allow if {
+    print("input", input)
+    input.user == "alice"
+    input.action == "read"
+}
+```
+
+Then the output is like below.
+
+```
+📣 input {"action": "read", "resource": "document-123", "user": "alice"}
+```
+
+### Rego Version Selection
 
 ```go
 import "github.com/open-policy-agent/opa/ast"
@@ -97,27 +153,22 @@ client, err := opaq.New(
 )
 ```
 
-#### Accessing Policy Metadata
+### Accessing Policy Metadata
+
+`opaq` supports accessing policy metadata. The metadata is the annotations in the policy file. See [official documentation](https://www.openpolicyagent.org/docs/latest/policy-language/#metadata) for more details about Rego metadata.
 
 ```go
 // Get policy annotations
 metadata := client.Metadata()
-
-// Get policy sources
-sources := client.Sources()
 ```
 
-### Example Policy
+### Accessing Policy Sources
 
-```rego
-package authz
+`opaq` supports accessing policy sources. The sources are the policy files. Please note that the sources can not be changed after the client is created.
 
-default allow = false
-
-allow {
-    input.user == "alice"
-    input.action == "read"
-}
+```go
+// Get policy sources
+sources := client.Sources()
 ```
 
 ## License

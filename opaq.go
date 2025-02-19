@@ -105,7 +105,11 @@ func (c *Client) Metadata() ast.FlatAnnotationsRefSet {
 
 // Sources returns the policy data. It works only for local policy data (File or Data).
 func (c *Client) Sources() map[string]string {
-	return c.policy
+	copied := make(map[string]string)
+	for k, v := range c.policy {
+		copied[k] = v
+	}
+	return copied
 }
 
 // Query evaluates the given query with the provided input and output. The query is evaluated against the policy data provided during client creation.
@@ -138,7 +142,7 @@ func (c *Client) Query(ctx context.Context, query string, input, output any, opt
 
 	if cfg.printHook != nil {
 		c.cfg.logger.Debug("Setting print hook")
-		regoOptions = append(regoOptions, rego.PrintHook(cfg.printHook))
+		regoOptions = append(regoOptions, rego.PrintHook(&printHook{hook: cfg.printHook}))
 	}
 
 	q := rego.New(regoOptions...)
@@ -166,15 +170,32 @@ func (c *Client) Query(ctx context.Context, query string, input, output any, opt
 	return nil
 }
 
+type printHook struct {
+	hook Hook
+}
+
+func (h *printHook) Print(ctx print.Context, msg string) error {
+	return h.hook(ctx, msg)
+}
+
+type Hook func(ctx print.Context, msg string) error
+
 // WithPrintHook sets the print hook for the query. The print hook is used to capture the print statements in the policy evaluation.
-func WithPrintHook(h print.Hook) QueryOption {
+//
+// Example:
+//
+//	hook := func(ctx print.Context, msg string) error {
+//		fmt.Println("📣", msg) // Show print statements from Rego policy
+//		return nil
+//	}
+func WithPrintHook(h Hook) QueryOption {
 	return func(o *queryCfg) {
 		o.printHook = h
 	}
 }
 
 type queryCfg struct {
-	printHook print.Hook
+	printHook Hook
 }
 
 type QueryOption func(*queryCfg)
