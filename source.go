@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 )
 
+// Files returns a Source that reads policy files. The method gets the policy files that have `.rego` extension, and gets the policy files recursively from the given paths.
 func Files(files ...string) Source {
 	return func() (map[string]string, error) {
 		policy := make(map[string]string)
@@ -42,6 +43,10 @@ func Files(files ...string) Source {
 	}
 }
 
+// Data returns a Source that have given data. The arguments are pairs of key and value.
+// Example:
+//
+//	opaq.Data("pkg1", "package pkg1\n\nallow := true\n")
 func Data(args ...string) Source {
 	return func() (map[string]string, error) {
 		data := make(map[string]string)
@@ -52,5 +57,21 @@ func Data(args ...string) Source {
 			data[args[i]] = args[i+1]
 		}
 		return data, nil
+	}
+}
+
+// DataMap returns a Source that have given data. The argument is a map of key and value.
+// Example:
+//
+//	opaq.DataMap(map[string]string{
+//		"pkg1": "package pkg1\n\nallow := true\n",
+//	})
+func DataMap(data map[string]string) Source {
+	policy := make(map[string]string, len(data))
+	for k, v := range data {
+		policy[k] = v
+	}
+	return func() (map[string]string, error) {
+		return policy, nil
 	}
 }
