@@ -1,4 +1,4 @@
-# opaq [![Go Reference](https://pkg.go.dev/badge/github.com/m-mizutani/opaq.svg)](https://pkg.go.dev/github.com/m-mizutani/opaq) [![test](https://github.com/m-mizutani/opaq/actions/workflows/test.yml/badge.svg)](https://github.com/m-mizutani/opaq/actions/workflows/test.yml) [![gosec](https://github.com/m-mizutani/opaq/actions/workflows/gosec.yml/badge.svg)](https://github.com/m-mizutani/opaq/actions/workflows/gosec.yml) [![trivy](https://github.com/m-mizutani/opaq/actions/workflows/trivy.yml/badge.svg)](https://github.com/m-mizutani/opaq/actions/workflows/trivy.yml)
+# opaq [![Go Reference](https://pkg.go.dev/badge/github.com/m-mizutani/opaq.svg)](https://pkg.go.dev/github.com/m-mizutani/opaq) [![test](https://github.com/m-mizutani/opaq/actions/workflows/test.yml/badge.svg)](https://github.com/m-mizutani/opaq/actions/workflows/test.yml) [![gosec](https://github.com/m-mizutani/opaq/actions/workflows/gosec.yml/badge.svg)](https://github.com/m-mizutani/opaq/actions/workflows/gosec.yml) [![trivy](https://github.com/m-mizutani/opaq/actions/workflows/trivy.yml/badge.svg)](https://github.com/m-mizutani/opaq/actions/workflows/trivy.yml) [![lint](https://github.com/m-mizutani/opaq/actions/workflows/lint.yml/badge.svg)](https://github.com/m-mizutani/opaq/actions/workflows/lint.yml)
 
 Rego query library with local policy file or data based on OPA (Open Policy Agent). This library is a wrapper of [Open Policy Agent](https://www.openpolicyagent.org/) and [Rego](https://www.openpolicyagent.org/docs/policy-language.html) to evaluate local policy files or data.
 
@@ -173,12 +173,6 @@ sources := client.Sources()
 
 ## License
 
-[License information here]
+Apache License, Version 2.0
 
-
-
-
-
-
-
-
+See [LICENSE](./LICENSE) for more details.
