@@ -1,10 +1,9 @@
-package system.authz
+package authz
 
 allow if {
-    input.user == "admin"
+    input.user == "alice"
 }
 
 allow if {
-    input.role == "developer"
+    input.role == "admin"
 }
-

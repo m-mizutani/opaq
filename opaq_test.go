@@ -220,7 +220,7 @@ func (e *testError) Error() string {
 }
 
 func TestClientWithAuthzPolicy(t *testing.T) {
-	client, err := opaq.New(opaq.Files("testdata/examples"))
+	client, err := opaq.New(opaq.Files("testdata/server"))
 	gt.NoError(t, err)
 
 	tests := []struct {
