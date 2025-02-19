@@ -1,0 +1,6 @@
+# This file is valid rego policy, but it will not be imported because ext is ".txt"
+package color
+
+number := 5 {
+    input.color == "blue"
+}
