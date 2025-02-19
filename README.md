@@ -153,6 +153,25 @@ client, err := opaq.New(
 )
 ```
 
+### Policy from data
+
+`opaq` supports policy from data in Go code. This is useful when testing.
+
+```go
+policy := `
+package pkg1
+
+allow if {
+    input.user == "alice"
+    input.action == "read"
+}
+`
+
+client, err := opaq.New(
+    opaq.Data("pkg1", policy),
+)
+```
+
 ### Accessing Policy Metadata
 
 `opaq` supports accessing policy metadata. The metadata is the annotations in the policy file. See [official documentation](https://www.openpolicyagent.org/docs/latest/policy-language/#metadata) for more details about Rego metadata.
