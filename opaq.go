@@ -2,6 +2,7 @@ package opaq
 
 import (
 	"context"
+	"path/filepath"
 
 	"crypto/rand"
 	"encoding/json"
@@ -28,8 +29,9 @@ type Client struct {
 }
 
 type config struct {
-	logger  *slog.Logger
-	version ast.RegoVersion
+	logger      *slog.Logger
+	version     ast.RegoVersion
+	relBasePath string
 }
 
 type Option func(*config)
@@ -43,6 +45,18 @@ func WithLogger(logger *slog.Logger) Option {
 func WithRegoVersion(version ast.RegoVersion) Option {
 	return func(c *config) {
 		c.version = version
+	}
+}
+
+// WithRelPath sets the relative path to the policy data. If the relative path is set, the filepath of the policy data will be renamed to the relative path from the current working directory.
+//
+// Example:
+//
+//		opaq.Files("./some/dir/policy/example.rego", opaq.WithRelPath("./some/dir"))
+//	 // the policy data will be renamed to "policy/example.rego"
+func WithRelPath(relBasePath string) Option {
+	return func(c *config) {
+		c.relBasePath = relBasePath
 	}
 }
 
@@ -66,17 +80,30 @@ func (w *noopWriter) Write(p []byte) (n int, err error) {
 //		}
 //		client.Query(context.Background(), "data.your_policy", map[string]any{"input": "input"}, &resp)
 func New(src Source, options ...Option) (*Client, error) {
+	cfg := &config{
+		logger:      slog.New(slog.NewTextHandler(&noopWriter{}, nil)),
+		version:     ast.RegoV1,
+		relBasePath: "",
+	}
+	for _, opt := range options {
+		opt(cfg)
+	}
+
 	policy, err := src()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
 
-	cfg := &config{
-		logger:  slog.New(slog.NewTextHandler(&noopWriter{}, nil)),
-		version: ast.RegoV1,
-	}
-	for _, opt := range options {
-		opt(cfg)
+	if cfg.relBasePath != "" {
+		newPolicy := make(map[string]string)
+		for k, v := range policy {
+			rel, err := filepath.Rel(cfg.relBasePath, k)
+			if err != nil {
+				continue // ignore errors
+			}
+			newPolicy[rel] = v
+		}
+		policy = newPolicy
 	}
 
 	compiler, err := ast.CompileModulesWithOpt(policy, ast.CompileOpts{

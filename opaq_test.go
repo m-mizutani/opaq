@@ -287,3 +287,11 @@ func TestMetadataConflict(t *testing.T) {
 	)
 	gt.Error(t, err)
 }
+
+func TestWithRelPath(t *testing.T) {
+	client, err := opaq.New(opaq.Files("testdata/server"), opaq.WithRelPath("testdata"))
+	gt.NoError(t, err)
+
+	sources := client.Sources()
+	gt.Map(t, sources).HaveKey("server/policy.rego").NotHaveKey("testdata/server/policy.rego")
+}
