@@ -2,6 +2,7 @@ package opaq
 
 import (
 	"context"
+	"maps"
 	"path/filepath"
 
 	"crypto/rand"
@@ -133,9 +134,7 @@ func (c *Client) Metadata() ast.FlatAnnotationsRefSet {
 // Sources returns the policy data. It works only for local policy data (File or Data).
 func (c *Client) Sources() map[string]string {
 	copied := make(map[string]string)
-	for k, v := range c.policy {
-		copied[k] = v
-	}
+	maps.Copy(copied, c.policy)
 	return copied
 }
 
