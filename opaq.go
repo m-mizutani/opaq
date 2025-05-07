@@ -200,11 +200,29 @@ type printHook struct {
 	hook Hook
 }
 
-func (h *printHook) Print(ctx print.Context, msg string) error {
-	return h.hook(ctx, msg)
+type PrintLocation struct {
+	Text   []byte `json:"-"`    // The original text fragment from the source.
+	File   string `json:"file"` // The name of the source file (which may be empty).
+	Row    int    `json:"row"`  // The line in the source.
+	Col    int    `json:"col"`  // The column in the row.
+	Offset int    `json:"-"`    // The byte offset for the location in the source.
+
+	Tabs []int `json:"-"` // The column offsets of tabs in the source.
 }
 
-type Hook func(ctx print.Context, msg string) error
+func (h *printHook) Print(ctx print.Context, msg string) error {
+	loc := PrintLocation{
+		Text:   ctx.Location.Text,
+		File:   ctx.Location.File,
+		Row:    ctx.Location.Row,
+		Col:    ctx.Location.Col,
+		Offset: ctx.Location.Offset,
+		Tabs:   ctx.Location.Tabs,
+	}
+	return h.hook(ctx.Context, loc, msg)
+}
+
+type Hook func(ctx context.Context, loc PrintLocation, msg string) error
 
 // WithPrintHook sets the print hook for the query. The print hook is used to capture the print statements in the policy evaluation.
 //
