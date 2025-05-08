@@ -6,7 +6,6 @@ import (
 	"log"
 
 	"github.com/m-mizutani/opaq"
-	"github.com/open-policy-agent/opa/v1/topdown/print"
 )
 
 func main() {
@@ -30,7 +29,7 @@ func main() {
 		Allow bool `json:"allow"`
 	}
 
-	hook := func(ctx print.Context, msg string) error {
+	hook := func(ctx context.Context, loc opaq.PrintLocation, msg string) error {
 		fmt.Println("📣", msg) // Show print statements from Rego policy
 		return nil
 	}

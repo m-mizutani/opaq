@@ -9,7 +9,6 @@ import (
 	"github.com/m-mizutani/gt"
 	"github.com/m-mizutani/opaq"
 	"github.com/open-policy-agent/opa/v1/ast"
-	"github.com/open-policy-agent/opa/v1/topdown/print"
 )
 
 func TestNew(t *testing.T) {
@@ -162,7 +161,7 @@ func TestClient_Options(t *testing.T) {
 		"data.test",
 		nil,
 		&result,
-		opaq.WithPrintHook(func(ctx print.Context, msg string) error {
+		opaq.WithPrintHook(func(ctx context.Context, loc opaq.PrintLocation, msg string) error {
 			printHookCalled = true
 			printHookMsg = msg
 			return nil
