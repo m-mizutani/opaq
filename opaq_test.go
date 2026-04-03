@@ -110,6 +110,13 @@ func TestClient_Query(t *testing.T) {
 			wantErr:     true,
 			errContains: "failed to evaluate query",
 		},
+		{
+			name:        "non-existent package",
+			query:       "data.nonexistent",
+			input:       map[string]any{"user": "admin"},
+			wantErr:     true,
+			errContains: "no evaluation result",
+		},
 	}
 
 	for _, tt := range tests {
