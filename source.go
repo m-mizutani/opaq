@@ -113,7 +113,7 @@ func (s *fileSource) setup(cfg *config) (*setupResult, error) {
 			}
 
 			fpath := filepath.Clean(path)
-			raw, err := os.ReadFile(fpath) // #nosec G403 -- policy files are trusted local input
+			raw, err := os.ReadFile(fpath) //#nosec -- policy files are trusted local input
 			if err != nil {
 				return fmt.Errorf("failed to read policy file: %w", err)
 			}
