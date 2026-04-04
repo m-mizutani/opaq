@@ -9,48 +9,49 @@ import (
 
 func TestSource(t *testing.T) {
 	t.Run("Files", func(t *testing.T) {
-		src := opaq.Files("testdata/local")
-		data, err := src()
+		client, err := opaq.New(opaq.Files("testdata/local"))
 		gt.NoError(t, err)
+		data := client.Sources()
 		gt.Map(t, data).
 			Length(2).
-			HaveKey("testdata/local/f1.rego").
-			HaveKey("testdata/local/f2.rego")
+			HasKey("testdata/local/f1.rego").
+			HasKey("testdata/local/f2.rego")
 	})
 
 	t.Run("Files with invalid args", func(t *testing.T) {
-		src := opaq.Files("not_exists")
-		_, err := src()
+		_, err := opaq.New(opaq.Files("not_exists"))
 		gt.Error(t, err)
 	})
 
 	t.Run("Data", func(t *testing.T) {
-		src := opaq.Data("key1", "value1", "key2", "value2")
-		data, err := src()
+		client, err := opaq.New(opaq.Data(
+			"key1", "package key1\nallow = true",
+			"key2", "package key2\nallow = true",
+		))
 		gt.NoError(t, err)
+		data := client.Sources()
 		gt.Map(t, data).
 			Length(2).
-			HaveKey("key1").
-			HaveKey("key2")
+			HasKey("key1").
+			HasKey("key2")
 	})
 
 	t.Run("Data with invalid args", func(t *testing.T) {
-		src := opaq.Data("key1")
-		_, err := src()
+		_, err := opaq.New(opaq.Data("key1"))
 		gt.Error(t, err)
 	})
 
 	t.Run("DataMap", func(t *testing.T) {
 		input := map[string]string{
-			"key1": "value1",
-			"key2": "value2",
+			"key1": "package key1\nallow = true",
+			"key2": "package key2\nallow = true",
 		}
-		src := opaq.DataMap(input)
-		data, err := src()
+		client, err := opaq.New(opaq.DataMap(input))
 		gt.NoError(t, err)
+		data := client.Sources()
 		gt.Map(t, data).
 			Length(2).
-			HaveKey("key1").
-			HaveKey("key2")
+			HasKey("key1").
+			HasKey("key2")
 	})
 }

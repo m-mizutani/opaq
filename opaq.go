@@ -2,37 +2,58 @@ package opaq
 
 import (
 	"context"
-	"maps"
-	"path/filepath"
-
-	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
+	"net/http"
 
 	"github.com/open-policy-agent/opa/v1/ast"
-	"github.com/open-policy-agent/opa/v1/rego"
 	"github.com/open-policy-agent/opa/v1/topdown/print"
 )
 
-// Source is a function that returns a map of policy data.
-//
-// Example:
-//
-//	opaq.Files("./some/dir/policy")
-type Source func() (map[string]string, error)
+type sourceKind int
+
+const (
+	sourceKindLocal sourceKind = iota
+	sourceKindServer
+)
+
+// Source configures how the Client evaluates queries.
+type Source interface {
+	setup(cfg *config) (*setupResult, error)
+	kind() sourceKind
+}
+
+type setupResult struct {
+	querier  querier
+	policy   map[string]string
+	compiler *ast.Compiler
+}
+
+type querier interface {
+	query(ctx context.Context, queryStr string, input, output any, cfg *queryCfg) error
+}
 
 // Client is a client for the opaq.
 type Client struct {
 	policy   map[string]string
 	compiler *ast.Compiler
 	cfg      *config
+	querier  querier
 }
 
 type config struct {
 	logger      *slog.Logger
 	version     ast.RegoVersion
 	relBasePath string
+
+	// server-specific
+	httpClient *http.Client
+	headers    map[string]string
+	headerFunc func(ctx context.Context) (http.Header, error)
+
+	// tracking explicitly set options for compatibility validation
+	versionSet bool
 }
 
 type Option func(*config)
@@ -46,6 +67,7 @@ func WithLogger(logger *slog.Logger) Option {
 func WithRegoVersion(version ast.RegoVersion) Option {
 	return func(c *config) {
 		c.version = version
+		c.versionSet = true
 	}
 }
 
@@ -61,6 +83,30 @@ func WithRelPath(relBasePath string) Option {
 	}
 }
 
+// WithHTTPClient sets the HTTP client for server queries. Only available with Server source.
+func WithHTTPClient(client *http.Client) Option {
+	return func(c *config) {
+		c.httpClient = client
+	}
+}
+
+// WithHeader sets a static HTTP header for server queries. Can be called multiple times. Only available with Server source.
+func WithHeader(key, value string) Option {
+	return func(c *config) {
+		if c.headers == nil {
+			c.headers = make(map[string]string)
+		}
+		c.headers[key] = value
+	}
+}
+
+// WithHeaderFunc sets a dynamic header provider for server queries. The function is called on every Query invocation. Dynamic headers override static headers with the same key. Only available with Server source.
+func WithHeaderFunc(fn func(ctx context.Context) (http.Header, error)) Option {
+	return func(c *config) {
+		c.headerFunc = fn
+	}
+}
+
 type noopWriter struct{}
 
 func (w *noopWriter) Write(p []byte) (n int, err error) {
@@ -71,68 +117,74 @@ func (w *noopWriter) Write(p []byte) (n int, err error) {
 //
 // Example:
 //
-//		client, err := opaq.New(opaq.Files("./some/dir/policy"))
-//		if err != nil {
-//			log.Fatal(err)
-//		}
+//	// Local policy evaluation
+//	client, err := opaq.New(opaq.Files("./some/dir/policy"))
 //
-//	 var resp struct {
-//			Allow bool `json:"allow"`
-//		}
-//		client.Query(context.Background(), "data.your_policy", map[string]any{"input": "input"}, &resp)
+//	// Remote OPA server
+//	client, err := opaq.New(opaq.Server("http://localhost:8181"))
 func New(src Source, options ...Option) (*Client, error) {
 	cfg := &config{
-		logger:      slog.New(slog.NewTextHandler(&noopWriter{}, nil)),
-		version:     ast.RegoV1,
-		relBasePath: "",
+		logger:  slog.New(slog.NewTextHandler(&noopWriter{}, nil)),
+		version: ast.RegoV1,
 	}
 	for _, opt := range options {
 		opt(cfg)
 	}
 
-	policy, err := src()
+	if err := validateOptions(src.kind(), cfg); err != nil {
+		return nil, err
+	}
+
+	result, err := src.setup(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
 
-	if cfg.relBasePath != "" {
-		newPolicy := make(map[string]string)
-		for k, v := range policy {
-			rel, err := filepath.Rel(cfg.relBasePath, k)
-			if err != nil {
-				continue // ignore errors
-			}
-			newPolicy[rel] = v
-		}
-		policy = newPolicy
-	}
-
-	compiler, err := ast.CompileModulesWithOpt(policy, ast.CompileOpts{
-		EnablePrintStatements: true,
-		ParserOptions: ast.ParserOptions{
-			ProcessAnnotation: true,
-			RegoVersion:       cfg.version,
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to compile policy: %w", err)
-	}
-
 	return &Client{
-		policy:   policy,
-		compiler: compiler,
+		policy:   result.policy,
+		compiler: result.compiler,
 		cfg:      cfg,
+		querier:  result.querier,
 	}, nil
+}
+
+func validateOptions(kind sourceKind, cfg *config) error {
+	switch kind {
+	case sourceKindLocal:
+		if cfg.httpClient != nil {
+			return fmt.Errorf("WithHTTPClient is only available with Server source")
+		}
+		if cfg.headers != nil {
+			return fmt.Errorf("WithHeader is only available with Server source")
+		}
+		if cfg.headerFunc != nil {
+			return fmt.Errorf("WithHeaderFunc is only available with Server source")
+		}
+	case sourceKindServer:
+		if cfg.versionSet {
+			return fmt.Errorf("WithRegoVersion is only available with local source (Files, Data, DataMap)")
+		}
+		if cfg.relBasePath != "" {
+			return fmt.Errorf("WithRelPath is only available with local source (Files, Data, DataMap)")
+		}
+	}
+	return nil
 }
 
 // Metadata returns the annotation set of the policy data. It works only for local policy data (File or Data).
 func (c *Client) Metadata() ast.FlatAnnotationsRefSet {
+	if c.compiler == nil {
+		return nil
+	}
 	as := c.compiler.GetAnnotationSet()
 	return as.Flatten()
 }
 
 // Sources returns the policy data. It works only for local policy data (File or Data).
 func (c *Client) Sources() map[string]string {
+	if c.policy == nil {
+		return nil
+	}
 	copied := make(map[string]string)
 	maps.Copy(copied, c.policy)
 	return copied
@@ -154,46 +206,11 @@ func (c *Client) Sources() map[string]string {
 //		log.Fatal(err)
 //	}
 func (c *Client) Query(ctx context.Context, query string, input, output any, options ...QueryOption) error {
-	logger := c.cfg.logger.With("query_id", rand.Text())
-	regoOptions := []func(r *rego.Rego){
-		rego.Query(query),
-		rego.Compiler(c.compiler),
-		rego.Input(input),
-	}
-
 	var cfg queryCfg
 	for _, opt := range options {
 		opt(&cfg)
 	}
-
-	if cfg.printHook != nil {
-		c.cfg.logger.Debug("Setting print hook")
-		regoOptions = append(regoOptions, rego.PrintHook(&printHook{hook: cfg.printHook}))
-	}
-
-	q := rego.New(regoOptions...)
-
-	logger.Debug("Evaluating query", "query", query, "input", input)
-	rs, err := q.Eval(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to evaluate query: %w", err)
-	}
-	logger.Debug("Query evaluated", "result", rs)
-
-	if len(rs) == 0 || len(rs[0].Expressions) == 0 {
-		return ErrNoEvalResult
-	}
-
-	raw, err := json.Marshal(rs[0].Expressions[0].Value)
-	if err != nil {
-		return fmt.Errorf("failed to marshal result: %w", err)
-	}
-	if err := json.Unmarshal(raw, output); err != nil {
-		return fmt.Errorf("failed to unmarshal result: %w", err)
-	}
-	logger.Debug("Unmarshaled result", "output", output)
-
-	return nil
+	return c.querier.query(ctx, query, input, output, &cfg)
 }
 
 type printHook struct {
@@ -224,7 +241,7 @@ func (h *printHook) Print(ctx print.Context, msg string) error {
 
 type Hook func(ctx context.Context, loc PrintLocation, msg string) error
 
-// WithPrintHook sets the print hook for the query. The print hook is used to capture the print statements in the policy evaluation.
+// WithPrintHook sets the print hook for the query. The print hook is used to capture the print statements in the policy evaluation. Only available with local source.
 //
 // Example:
 //
