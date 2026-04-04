@@ -114,7 +114,7 @@ func (q *serverQuerier) query(ctx context.Context, queryStr string, input, outpu
 	if err != nil {
 		return fmt.Errorf("failed to send HTTP request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

@@ -68,7 +68,7 @@ func TestQueryToPath(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calledPath = r.URL.Path
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{"allow": true}})
+				_ = json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{"allow": true}})
 			}))
 			defer srv.Close()
 
@@ -99,7 +99,7 @@ func TestServerQuery(t *testing.T) {
 		allow := user == "admin"
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"result": map[string]any{"allow": allow},
 		})
 	}))
@@ -151,7 +151,7 @@ func TestServerQuery_StaticHeaders(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedHeaders = r.Header.Clone()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"result": true})
+		_ = json.NewEncoder(w).Encode(map[string]any{"result": true})
 	}))
 	defer srv.Close()
 
@@ -174,7 +174,7 @@ func TestServerQuery_DynamicHeaders(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedHeaders = r.Header.Clone()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"result": true})
+		_ = json.NewEncoder(w).Encode(map[string]any{"result": true})
 	}))
 	defer srv.Close()
 
@@ -224,7 +224,7 @@ func TestServerQuery_DynamicHeaderError(t *testing.T) {
 func TestServerQuery_NonOKStatus(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "internal error"}`))
+		_, _ = w.Write([]byte(`{"error": "internal error"}`))
 	}))
 	defer srv.Close()
 
@@ -240,7 +240,7 @@ func TestServerQuery_NonOKStatus(t *testing.T) {
 func TestServerQuery_InvalidResponseBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`not json`))
+		_, _ = w.Write([]byte(`not json`))
 	}))
 	defer srv.Close()
 
@@ -335,7 +335,7 @@ func TestOptionCompatibility(t *testing.T) {
 func TestServerQuery_CustomHTTPClient(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"result": true})
+		_ = json.NewEncoder(w).Encode(map[string]any{"result": true})
 	}))
 	defer srv.Close()
 
