@@ -116,7 +116,7 @@ func (q *serverQuerier) query(ctx context.Context, queryStr string, input, outpu
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // Limit to 1MB
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
@@ -152,6 +152,9 @@ func (q *serverQuerier) query(ctx context.Context, queryStr string, input, outpu
 func queryToPath(query string) (string, error) {
 	if query == "" {
 		return "", fmt.Errorf("query must not be empty")
+	}
+	if query == "data" {
+		return "/v1/data", nil
 	}
 	if !strings.HasPrefix(query, "data.") {
 		return "", fmt.Errorf("query must start with \"data.\" (only /v1/data endpoint is supported): got %q", query)

@@ -34,8 +34,13 @@ func TestQueryToPath(t *testing.T) {
 			want:  "/v1/data/example/policy/main",
 		},
 		{
-			name:  "data only",
+			name:  "data with trailing dot",
 			query: "data.",
+			want:  "/v1/data",
+		},
+		{
+			name:  "data root",
+			query: "data",
 			want:  "/v1/data",
 		},
 		{
