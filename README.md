@@ -1,6 +1,6 @@
 # opaq [![Go Reference](https://pkg.go.dev/badge/github.com/m-mizutani/opaq.svg)](https://pkg.go.dev/github.com/m-mizutani/opaq) [![test](https://github.com/m-mizutani/opaq/actions/workflows/test.yml/badge.svg)](https://github.com/m-mizutani/opaq/actions/workflows/test.yml) [![gosec](https://github.com/m-mizutani/opaq/actions/workflows/gosec.yml/badge.svg)](https://github.com/m-mizutani/opaq/actions/workflows/gosec.yml) [![trivy](https://github.com/m-mizutani/opaq/actions/workflows/trivy.yml/badge.svg)](https://github.com/m-mizutani/opaq/actions/workflows/trivy.yml) [![lint](https://github.com/m-mizutani/opaq/actions/workflows/lint.yml/badge.svg)](https://github.com/m-mizutani/opaq/actions/workflows/lint.yml)
 
-Rego query library with local policy file or data based on OPA (Open Policy Agent). This library is a wrapper of [Open Policy Agent](https://www.openpolicyagent.org/) and [Rego](https://www.openpolicyagent.org/docs/policy-language.html) to evaluate local policy files or data.
+Rego query library based on OPA (Open Policy Agent). This library is a wrapper of [Open Policy Agent](https://www.openpolicyagent.org/) and [Rego](https://www.openpolicyagent.org/docs/policy-language.html) to evaluate local policy files or query a remote OPA server.
 
 ## Install
 ```
@@ -171,6 +171,69 @@ client, err := opaq.New(
     opaq.Data("pkg1", policy),
 )
 ```
+
+### OPA Server Query
+
+`opaq` supports querying a remote OPA server via its REST API. Use `opaq.Server(url)` as a Source instead of `opaq.Files(...)`.
+
+```go
+// Create a client that queries an OPA server
+client, err := opaq.New(opaq.Server("http://localhost:8181"))
+if err != nil {
+    log.Fatal(err)
+}
+
+var output struct {
+    Allow bool `json:"allow"`
+}
+err = client.Query(
+    context.Background(),
+    "data.authz",
+    map[string]any{"user": "alice"},
+    &output,
+)
+```
+
+The query string (e.g. `data.authz.allow`) is automatically converted to the OPA REST API path (e.g. `/v1/data/authz/allow`).
+
+#### Custom HTTP Client
+
+```go
+client, err := opaq.New(
+    opaq.Server("http://localhost:8181"),
+    opaq.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
+)
+```
+
+#### Static Headers
+
+```go
+client, err := opaq.New(
+    opaq.Server("http://localhost:8181"),
+    opaq.WithHeader("Authorization", "Bearer my-token"),
+)
+```
+
+#### Dynamic Headers
+
+For headers that need to be computed on every request (e.g. refreshing auth tokens):
+
+```go
+client, err := opaq.New(
+    opaq.Server("http://localhost:8181"),
+    opaq.WithHeaderFunc(func(ctx context.Context) (http.Header, error) {
+        token, err := refreshToken(ctx)
+        if err != nil {
+            return nil, err
+        }
+        return http.Header{
+            "Authorization": []string{"Bearer " + token},
+        }, nil
+    }),
+)
+```
+
+Dynamic headers override static headers with the same key.
 
 ### Accessing Policy Metadata
 

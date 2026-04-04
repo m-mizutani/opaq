@@ -21,31 +21,25 @@ func TestNew(t *testing.T) {
 	}{
 		{
 			name: "valid policy",
-			source: func() (map[string]string, error) {
-				return map[string]string{
-					"test.rego": `package test
+			source: opaq.DataMap(map[string]string{
+				"test.rego": `package test
 
-					allow = true`,
-				}, nil
-			},
+				allow = true`,
+			}),
 		},
 		{
 			name: "invalid policy",
-			source: func() (map[string]string, error) {
-				return map[string]string{
-					"test.rego": `package test
+			source: opaq.DataMap(map[string]string{
+				"test.rego": `package test
 
-					allow = invalid_syntax`,
-				}, nil
-			},
+				allow = invalid_syntax`,
+			}),
 			wantErr:     true,
 			errContains: "failed to compile policy",
 		},
 		{
-			name: "source error",
-			source: func() (map[string]string, error) {
-				return nil, &testError{"test error"}
-			},
+			name:        "source error",
+			source:      opaq.Files("not_exists"),
 			wantErr:     true,
 			errContains: "failed to create client",
 		},
@@ -75,9 +69,7 @@ func TestClient_Query(t *testing.T) {
 		print("admin access granted")
 	}`
 
-	client, err := opaq.New(func() (map[string]string, error) {
-		return map[string]string{"test.rego": policy}, nil
-	})
+	client, err := opaq.New(opaq.DataMap(map[string]string{"test.rego": policy}))
 	gt.NoError(t, err)
 
 	tests := []struct {
@@ -150,9 +142,7 @@ func TestClient_Options(t *testing.T) {
 	}`
 
 	client, err := opaq.New(
-		func() (map[string]string, error) {
-			return map[string]string{"test.rego": policy}, nil
-		},
+		opaq.DataMap(map[string]string{"test.rego": policy}),
 		opaq.WithLogger(logger),
 		opaq.WithRegoVersion(ast.RegoV1),
 	)
@@ -190,7 +180,7 @@ func TestClient_Metadata(t *testing.T) {
 allow = true`
 
 	client, err := opaq.New(opaq.Data("test.rego", policy))
-	gt.NoError(t, err).Must()
+	gt.NoError(t, err)
 
 	metadata := client.Metadata()
 	gt.Array(t, metadata).Longer(0)
@@ -201,21 +191,11 @@ func TestClient_Sources(t *testing.T) {
 	allow = true`
 
 	source := map[string]string{"test.rego": policy}
-	client, err := opaq.New(func() (map[string]string, error) {
-		return source, nil
-	})
+	client, err := opaq.New(opaq.DataMap(source))
 	gt.NoError(t, err)
 
 	sources := client.Sources()
 	gt.Map(t, sources).Equal(source)
-}
-
-type testError struct {
-	msg string
-}
-
-func (e *testError) Error() string {
-	return e.msg
 }
 
 func TestClientWithAuthzPolicy(t *testing.T) {
@@ -299,5 +279,5 @@ func TestWithRelPath(t *testing.T) {
 	gt.NoError(t, err)
 
 	sources := client.Sources()
-	gt.Map(t, sources).HaveKey("server/policy.rego").NotHaveKey("testdata/server/policy.rego")
+	gt.Map(t, sources).HasKey("server/policy.rego").NotHasKey("testdata/server/policy.rego")
 }
