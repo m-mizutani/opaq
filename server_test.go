@@ -344,6 +344,53 @@ func TestOptionCompatibility(t *testing.T) {
 	})
 }
 
+func TestServerQuery_BaseURLWithPath(t *testing.T) {
+	var calledPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calledPath = r.URL.Path
+		writeJSON(t, w, map[string]any{"result": true})
+	}))
+	defer srv.Close()
+
+	tests := []struct {
+		name     string
+		baseURL  string
+		query    string
+		wantPath string
+	}{
+		{
+			name:     "base URL with path prefix",
+			baseURL:  srv.URL + "/myprefix",
+			query:    "data.authz.allow",
+			wantPath: "/myprefix/v1/data/authz/allow",
+		},
+		{
+			name:     "base URL with trailing slash",
+			baseURL:  srv.URL + "/myprefix/",
+			query:    "data.authz",
+			wantPath: "/myprefix/v1/data/authz",
+		},
+		{
+			name:     "base URL without path",
+			baseURL:  srv.URL,
+			query:    "data.authz.allow",
+			wantPath: "/v1/data/authz/allow",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := opaq.New(opaq.Server(tt.baseURL))
+			gt.NoError(t, err)
+
+			var output bool
+			err = client.Query(context.Background(), tt.query, nil, &output)
+			gt.NoError(t, err)
+			gt.Value(t, calledPath).Equal(tt.wantPath)
+		})
+	}
+}
+
 func TestServerQuery_CustomHTTPClient(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(t, w, map[string]any{"result": true})
