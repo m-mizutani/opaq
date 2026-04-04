@@ -11,6 +11,14 @@ import (
 	"github.com/m-mizutani/opaq"
 )
 
+func writeJSON(t *testing.T, w http.ResponseWriter, v any) {
+	t.Helper()
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		t.Fatalf("failed to encode JSON response: %v", err)
+	}
+}
+
 func TestQueryToPath(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -72,8 +80,7 @@ func TestQueryToPath(t *testing.T) {
 			var calledPath string
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calledPath = r.URL.Path
-				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{"allow": true}})
+				writeJSON(t, w, map[string]any{"result": map[string]any{"allow": true}})
 			}))
 			defer srv.Close()
 
@@ -103,8 +110,7 @@ func TestServerQuery(t *testing.T) {
 		user, _ := req.Input["user"].(string)
 		allow := user == "admin"
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		writeJSON(t, w, map[string]any{
 			"result": map[string]any{"allow": allow},
 		})
 	}))
@@ -155,8 +161,7 @@ func TestServerQuery_StaticHeaders(t *testing.T) {
 	var receivedHeaders http.Header
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedHeaders = r.Header.Clone()
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"result": true})
+		writeJSON(t, w, map[string]any{"result": true})
 	}))
 	defer srv.Close()
 
@@ -178,8 +183,7 @@ func TestServerQuery_DynamicHeaders(t *testing.T) {
 	var receivedHeaders http.Header
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedHeaders = r.Header.Clone()
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"result": true})
+		writeJSON(t, w, map[string]any{"result": true})
 	}))
 	defer srv.Close()
 
@@ -229,7 +233,9 @@ func TestServerQuery_DynamicHeaderError(t *testing.T) {
 func TestServerQuery_NonOKStatus(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"error": "internal error"}`))
+		if _, err := w.Write([]byte(`{"error": "internal error"}`)); err != nil {
+			t.Fatalf("failed to write response: %v", err)
+		}
 	}))
 	defer srv.Close()
 
@@ -245,7 +251,9 @@ func TestServerQuery_NonOKStatus(t *testing.T) {
 func TestServerQuery_InvalidResponseBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`not json`))
+		if _, err := w.Write([]byte(`not json`)); err != nil {
+			t.Fatalf("failed to write response: %v", err)
+		}
 	}))
 	defer srv.Close()
 
@@ -260,8 +268,7 @@ func TestServerQuery_InvalidResponseBody(t *testing.T) {
 
 func TestServerQuery_NoResult(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{})
+		writeJSON(t, w, map[string]any{})
 	}))
 	defer srv.Close()
 
@@ -339,8 +346,7 @@ func TestOptionCompatibility(t *testing.T) {
 
 func TestServerQuery_CustomHTTPClient(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"result": true})
+		writeJSON(t, w, map[string]any{"result": true})
 	}))
 	defer srv.Close()
 
